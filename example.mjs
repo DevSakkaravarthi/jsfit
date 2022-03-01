@@ -1,21 +1,5 @@
-jsfit
-========
-JavaScript FIT file encoder and decoder
-
-Create Garmin .FIT files for your sports activities in pure JS.
-
-Compatibility
---------
-* Browsers >= Good
-* NodeJS >= 14 (some versions of 13 too)
-
-
-Usage
---------
-### Browser
-
-```js
-import * as fit from './path/to/fit.mjs';
+// Run me from the src dir like `node ./exmaple.mjs`
+import * as fit from './src/fit.mjs';
 
 const fitParser = new fit.FitParser();
 fitParser.addMessage('file_id', {
@@ -80,5 +64,4 @@ fitParser.addMessage('segment_point', {
     }
 });
 const u8Arr = fitParser.encode();
-console.info("Here it is:", u8Arr);
-```
+console.log("Here it is:", u8Arr);

@@ -1,8 +1,13 @@
 {
   "name": "jsfit",
   "version": "6.9.0",
-  "description": "JavaScript FIT file encoder (decoder is unmaintained)",
+  "description": "JavaScript FIT file encoder and decoder",
   "main": "src/fit.mjs",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config .jest.config.mjs",
+    "test-debug": "node --inspect-brk --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --config .jest.config.mjs"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mayfield/jsfit.git"
@@ -14,6 +19,7 @@
   },
   "homepage": "https://github.com/mayfield/jsfit#readme",
   "devDependencies": {
-    "eslint": "8.10.0"
+    "eslint": "8.10.0",
+    "jest": "27.5.1"
   }
 }
