@@ -1,15 +1,8 @@
 {
   "name": "jsfit",
   "version": "6.9.0",
-  "description": "JavaScript FIT file encoder (decoder is 2nd unmaintained)",
-  "main": "src/jsfit.mjs",
-  "directories": {
-    "example": "examples",
-    "test": "test"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "description": "JavaScript FIT file encoder (decoder is unmaintained)",
+  "main": "src/fit.mjs",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mayfield/jsfit.git"
@@ -19,5 +12,8 @@
   "bugs": {
     "url": "https://github.com/mayfield/jsfit/issues"
   },
-  "homepage": "https://github.com/mayfield/jsfit#readme"
+  "homepage": "https://github.com/mayfield/jsfit#readme",
+  "devDependencies": {
+    "eslint": "8.10.0"
+  }
 }
