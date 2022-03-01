@@ -36,26 +36,27 @@ function dateTimeEncode(x) {
     }
 }
 
+const DVP = DataView.prototype;
 
 // Order is critical here, it matches the base_type_num mask 0x1f
 export const baseTypes = [
-    {invalid: 0xff, name: 'enum', size: 1, TypedArray: Uint8Array},
-    {invalid: 0x7f, name: 'sint8', size: 1, TypedArray: Int8Array},
-    {invalid: 0xff, name: 'uint8', size: 1, TypedArray: Uint8Array},
-    {invalid: 0x7fff, name: 'sint16', size: 2, TypedArray: Int16Array},
-    {invalid: 0xffff, name: 'uint16', size: 2, TypedArray: Uint16Array},
-    {invalid: 0x7fffffff, name: 'sint32', size: 4, TypedArray: Int32Array},
-    {invalid: 0xffffffff, name: 'uint32', size: 4, TypedArray: Uint32Array},
-    {invalid: 0x00, name: 'string', size: 1, TypedArray: Uint8Array},
-    {invalid: 0xffffffff, name: 'float32', size: 4, TypedArray: Float32Array},
-    {invalid: BigInt('0xffffffffffffffff'), name: 'float64', size: 8, TypedArray: Float64Array},
-    {invalid: 0x00, name: 'uint8z', size: 1, TypedArray: Uint8Array},
-    {invalid: 0x0000, name: 'uint16z', size: 2, TypedArray: Uint16Array},
-    {invalid: 0x00000000, name: 'uint32z', size: 4, TypedArray: Uint32Array},
-    {invalid: 0xff, name: 'byte', size: 1, TypedArray: Uint8Array},
-    {invalid: BigInt('0x7fffffffffffffff'), name: 'sint64', size: 8, TypedArray: BigInt64Array},
-    {invalid: BigInt('0xffffffffffffffff'), name: 'uint64', size: 8, TypedArray: BigUint64Array},
-    {invalid: BigInt('0x0000000000000000'), name: 'uint64z', size: 8, TypedArray: BigUint64Array},
+    {invalid: 0xff, name: 'enum', size: 1, TypedArray: Uint8Array, dataSet: DVP.setUint8},
+    {invalid: 0x7f, name: 'sint8', size: 1, TypedArray: Int8Array, dataSet: DVP.setInt8},
+    {invalid: 0xff, name: 'uint8', size: 1, TypedArray: Uint8Array, dataSet: DVP.setUint8},
+    {invalid: 0x7fff, name: 'sint16', size: 2, TypedArray: Int16Array, dataSet: DVP.setInt16},
+    {invalid: 0xffff, name: 'uint16', size: 2, TypedArray: Uint16Array, dataSet: DVP.setUint16},
+    {invalid: 0x7fffffff, name: 'sint32', size: 4, TypedArray: Int32Array, dataSet: DVP.setInt32},
+    {invalid: 0xffffffff, name: 'uint32', size: 4, TypedArray: Uint32Array, dataSet: DVP.setUint32},
+    {invalid: 0x00, name: 'string', size: 1, TypedArray: Uint8Array, dataSet: DVP.setUint8},
+    {invalid: 0xffffffff, name: 'float32', size: 4, TypedArray: Float32Array, dataSet: DVP.setFloat32},
+    {invalid: BigInt('0xffffffffffffffff'), name: 'float64', size: 8, TypedArray: Float64Array, dataSet: DVP.setFloat64},
+    {invalid: 0x00, name: 'uint8z', size: 1, TypedArray: Uint8Array, dataSet: DVP.setUint8},
+    {invalid: 0x0000, name: 'uint16z', size: 2, TypedArray: Uint16Array, dataSet: DVP.setUint16},
+    {invalid: 0x00000000, name: 'uint32z', size: 4, TypedArray: Uint32Array, dataSet: DVP.setUint32},
+    {invalid: 0xff, name: 'byte', size: 1, TypedArray: Uint8Array, dataSet: DVP.setUint8},
+    {invalid: BigInt('0x7fffffffffffffff'), name: 'sint64', size: 8, TypedArray: BigInt64Array, dataSet: DVP.setBigInt64},
+    {invalid: BigInt('0xffffffffffffffff'), name: 'uint64', size: 8, TypedArray: BigUint64Array, dataSet: DVP.setBigUint64},
+    {invalid: BigInt('0x0000000000000000'), name: 'uint64z', size: 8, TypedArray: BigUint64Array, dataSet: DVP.setBigUint64},
 ];
 
 export const messages = {
@@ -279,10 +280,10 @@ export const messages = {
       62: { field: 'max_pos_vertical_speed', type: 'uint16', scale: 1000, offset: 0},
       63: { field: 'max_neg_vertical_speed', type: 'uint16', scale: 1000, offset: 0},
       64: { field: 'min_heart_rate', type: 'uint8', scale: null, offset: 0},
-      65: { field: 'time_in_hr_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      66: { field: 'time_in_speed_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      67: { field: 'time_in_cadence_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      68: { field: 'time_in_power_zone', type: 'uint32_array', scale: 1000, offset: 0},
+      65: { field: 'time_in_hr_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      66: { field: 'time_in_speed_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      67: { field: 'time_in_cadence_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      68: { field: 'time_in_power_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
       69: { field: 'avg_lap_time', type: 'uint32', scale: 1000, offset: 0},
       70: { field: 'best_lap_index', type: 'uint16', scale: null, offset: 0},
       71: { field: 'min_altitude', type: 'uint16', scale: 5, offset: -500},
@@ -392,10 +393,10 @@ export const messages = {
       54: { field: 'avg_neg_vertical_speed', type: 'uint16', scale: 1000, offset: 0},
       55: { field: 'max_pos_vertical_speed', type: 'uint16', scale: 1000, offset: 0},
       56: { field: 'max_neg_vertical_speed', type: 'uint16', scale: 1000, offset: 0},
-      57: { field: 'time_in_hr_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      58: { field: 'time_in_speed_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      59: { field: 'time_in_cadence_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      60: { field: 'time_in_power_zone', type: 'uint32_array', scale: 1000, offset: 0},
+      57: { field: 'time_in_hr_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      58: { field: 'time_in_speed_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      59: { field: 'time_in_cadence_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      60: { field: 'time_in_power_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
       61: { field: 'repetition_num', type: 'uint16', scale: null, offset: 0},
       62: { field: 'min_altitude', type: 'uint16', scale: 5, offset: -500},
       63: { field: 'min_heart_rate', type: 'uint8', scale: null, offset: 0},
@@ -681,7 +682,7 @@ export const messages = {
     },
     78: {
       name: 'hrv',
-      0: { field: 'time', type: 'uint16_array', scale: 1000, offset: 0},
+      0: { field: 'time', type: 'uint16', scale: 1000, offset: 0, isArray: true},
     },
     142: {
       name: 'segment_lap',
@@ -736,10 +737,10 @@ export const messages = {
       46: { field: 'avg_neg_vertical_speed', type: 'uint16', scale: 1000, offset: 0},
       47: { field: 'max_pos_vertical_speed', type: 'uint16', scale: 1000, offset: 0},
       48: { field: 'max_neg_vertical_speed', type: 'uint16', scale: 1000, offset: 0},
-      49: { field: 'time_in_hr_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      50: { field: 'time_in_speed_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      51: { field: 'time_in_cadence_zone', type: 'uint32_array', scale: 1000, offset: 0},
-      52: { field: 'time_in_power_zone', type: 'uint32_array', scale: 1000, offset: 0},
+      49: { field: 'time_in_hr_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      50: { field: 'time_in_speed_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      51: { field: 'time_in_cadence_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
+      52: { field: 'time_in_power_zone', type: 'uint32', scale: 1000, offset: 0, isArray: true},
       53: { field: 'repetition_num', type: 'uint16', scale: null, offset: 0},
       54: { field: 'min_altitude', type: 'uint16', scale: 5, offset: -500},
       55: { field: 'min_heart_rate', type: 'uint8', scale: null, offset: 0},
@@ -786,7 +787,7 @@ export const messages = {
       2: { field: 'position_long', type: 'semicircles'},
       3: { field: 'distance', type: 'uint32', scale: 100, offset: 0},
       4: { field: 'altitude', type: 'uint16', scale: 5, offset: -500},
-      5: { field: 'leader_time', type: 'uint32_array', scale: 1000, offset: 0},
+      5: { field: 'leader_time', type: 'uint32', scale: 1000, offset: 0, isArray: true},
     },
     206: {
       name: 'field_description',
@@ -808,7 +809,7 @@ export const messages = {
     207: {
       name: 'developer_data_id',
       0: { field: 'developer_id', type: 'uint8', scale: null, offset: 0},
-      1: { field: 'application_id', type: 'byte_array', scale: null, offset: 0},
+      1: { field: 'application_id', type: 'byte', scale: null, offset: 0, isArray: true},
       2: { field: 'manufacturer_id', type: 'manufacturer', scale: null, offset: 0},
       3: { field: 'developer_data_index', type: 'uint8', scale: null, offset: 0},
       4: { field: 'application_version', type: 'uint8', scale: null, offset: 0}
@@ -4508,11 +4509,4 @@ export function getBaseType(baseType) {
 }
 
 
-export function getBaseTypeByName(name) {
-    for (const x of baseTypes) {
-        if (x.name === name) {
-            return x;
-        }
-    }
-    throw new TypeError(`Invalid base type: ${name}`);
-}
+export const baseTypesIndex = Object.fromEntries(baseTypes.map(x => [x.name, x]));

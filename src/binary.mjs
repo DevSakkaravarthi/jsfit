@@ -25,34 +25,12 @@ function readTypedData(buf, fDef) {
     return typedBuf;
 }
 
-function writeTypedData(data, fDef) {
-    const typeName = fDef.baseType.TypedArray.name.split('Array')[0];
-    const typeSize = fDef.baseType.TypedArray.BYTES_PER_ELEMENT;
-    const isLittleEndian = fDef.endianAbility ? fDef.littleEndian : true; // XXX Not sure if we should default to true.
-    let view;
-    if (typeof data === 'number' || typeof data === 'bigint') {
-        view = new DataView(new ArrayBuffer(typeSize));
-        view[`set${typeName}`](0, data, isLittleEndian);
-    } else if (data instanceof Array) {
-        view = new DataView(new ArrayBuffer(typeSize * data.length));
-        for (let i = 0; i < data.length; i++) {
-            view[`set${typeName}`](i * fDef.baseType.size, data[i], isLittleEndian);
-        }
-    } else if (data instanceof fDef.baseType.TypedArray) {
-        return data;  // No copy/conversion needed.
-    } else {
-        throw new TypeError(`Unsupported data type: ${data}`);
-    }
-    return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-}
-
 
 function encodeTypedData(data, fDef, fields) {
     const type = fDef.attrs.type;
-    const isArray = type.endsWith('_array');
-    const rootType = isArray ? type.split('_array')[0] : type;
+    const isArray = !!fDef.attrs.isArray;
     let customType;
-    if (getBaseTypeId(rootType) === undefined) {
+    if (getBaseTypeId(type) === undefined) {
         customType = fit.typesIndex[type];
         if (!customType) {
             throw new TypeError(`Unsupported type: ${type}`);
@@ -86,7 +64,7 @@ function encodeTypedData(data, fDef, fields) {
                 }
             }
         } else {
-            switch (rootType) {
+            switch (type) {
                 case 'enum':
                 case 'byte':
                 case 'sint8':
@@ -104,11 +82,10 @@ function encodeTypedData(data, fDef, fields) {
                     return fDef.attrs.scale ? (x - fDef.attrs.offset) * fDef.attrs.scale : x;
                 case 'string': {
                     const te = new TextEncoder();
-                    const bytes = te.encode(data);
-                    return joinBuffers([bytes, Uint8Array.from([0])]);
+                    return te.encode(data + '\0');
                 }
                 default:
-                    throw new TypeError(`Unhandled root type: ${rootType}`);
+                    throw new TypeError(`Unhandled root type: ${type}`);
             }
         }
     }
@@ -117,10 +94,9 @@ function encodeTypedData(data, fDef, fields) {
 
 function decodeTypedData(data, fDef, fields) {
     const type = fDef.attrs.type;
-    const isArray = type.endsWith('_array');
-    const rootType = isArray ? type.split('_array')[0] : type;
+    const isArray = !!fDef.attrs.isArray;
     let customType;
-    if (getBaseTypeId(rootType) === undefined) {
+    if (getBaseTypeId(type) === undefined) {
         customType = fit.types[type];
         if (!customType) {
             throw new TypeError(`Unsupported type: ${type}`);
@@ -153,7 +129,7 @@ function decodeTypedData(data, fDef, fields) {
                 }
             }
         } else {
-            switch (rootType) {
+            switch (type) {
                 case 'enum':
                 case 'byte':
                 case 'sint8':
@@ -179,7 +155,7 @@ function decodeTypedData(data, fDef, fields) {
                     }
                 }
                 default:
-                    throw new TypeError(`Unhandled root type: ${rootType}`);
+                    throw new TypeError(`Unhandled root type: ${type}`);
             }
         }
     }
@@ -197,52 +173,71 @@ function getInvalidValue(type) {
 
 
 function msgDefSig(mDef) {
-    const materials = [
-        mDef.littleEndian,
-        mDef.globalMessageNumber,
-        mDef.fieldCount,
-    ];
-    for (const x of mDef.fieldDefs) {
-        materials.push(
-            x.attrs.type,
-            x.fDefNum,
-            x.endianAbility,
-            x.littleEndian,
-            x.baseTypeId,
-        );
+    let sig = '' + mDef.littleEndian + mDef.globalMessageNumber + mDef.fieldCount + ' ';
+    for (let i = 0; i < mDef.fieldDefs.length; i++) {
+        const x = mDef.fieldDefs[i];
+        sig += ' ' + x.fDefNum + x.littleEndian + x.size;
     }
-    return materials.join('-');
+    return sig;
 }
 
 
-export function writeMessage(msg, localMsgTypes, devFields) {
-    const buffers = [];
+export function writeMessages(dataArray, msgs, devFields) {
+    const localMsgIds = new Map();
+    let offtDataArray = dataArray;
+    for (const x of msgs) {
+        offtDataArray = _writeMessage(offtDataArray, x, localMsgIds, devFields);
+    }
+    return new Uint8Array(offtDataArray.buffer, dataArray.byteOffset,
+        offtDataArray.byteOffset - dataArray.byteOffset);
+}
+
+
+function grow(dataArray, minGrowth) {
+    const curSize = dataArray.buffer.byteLength;
+    console.count("XXX grow");
+    const newSize = Math.ceil(Math.max(curSize * 1.15, curSize + minGrowth) / 4096) * 4096;
+    const bigger = new Uint8Array(newSize);
+    bigger.set(new Uint8Array(dataArray.buffer, 0));
+    return bigger.subarray(dataArray.byteOffset);
+}
+
+
+function _writeMessage(dataArray, msg, localMsgIds, devFields) {
+    // Prep the data and calculated sizes first...
+    const encoded = {};
+    msg.size = 1;
     for (const fDef of msg.mDef.fieldDefs) {
-        const value = msg.fields[fDef.attrs.field];
-        if (value == null) {
-            const typedBuf = new fDef.baseType.TypedArray(1);
-            typedBuf[0] = getInvalidValue(fDef.baseType.name);
-            fDef.size = typedBuf.byteLength;
-            buffers.push(typedBuf);
+        const key = fDef.attrs.field;
+        const value = msg.fields[key];
+        encoded[key] = value != null ?
+            encodeTypedData(value, fDef, msg.fields) :
+            getInvalidValue(fDef.baseType.name);
+        if (encoded[key] instanceof fDef.baseType.TypedArray) {
+            fDef.size = encoded[key].byteLength;  // string
         } else {
-            const encodedData = encodeTypedData(value, fDef, msg.fields);
-            const buf = writeTypedData(encodedData, fDef);
-            fDef.size = buf.byteLength;
-            buffers.push(buf);
+            const length = fDef.attrs.isArray && value ? value.length : 1;
+            fDef.size = fDef.baseType.size * length;
         }
+        msg.size += fDef.size;
     }
     const mDefSig = msgDefSig(msg.mDef);
-    const hasMatchingDef = localMsgTypes.has(mDefSig);
-    const localMsgType = hasMatchingDef ? localMsgTypes.get(mDefSig) : localMsgTypes.size;
-    const dataHeader = new Uint8Array(1);
-    dataHeader[0] = localMsgType & 0xf;
-    buffers.unshift(dataHeader);
-    if (!hasMatchingDef) {
-        localMsgTypes.set(mDefSig, localMsgType);
-        const defBuf = new Uint8Array(6 + (msg.mDef.fieldDefs.length * 3)); // XXX does not support devfields
+    let localMsgId;
+    if (localMsgIds.lastSig === mDefSig) {
+        localMsgId = localMsgIds.lastId;
+    } else {
+        localMsgId = localMsgIds.get(mDefSig);
+    }
+    let defBuf;
+    if (localMsgId === undefined) {
+        localMsgId = localMsgIds.size;
+        localMsgIds.set(mDefSig, localMsgId);
+        localMsgIds.lastSig = mDefSig;
+        localMsgIds.lastId = localMsgId;
+        defBuf = new Uint8Array(6 + (msg.mDef.fieldDefs.length * 3)); // XXX does not support devfields
         const defView = new DataView(defBuf.buffer, defBuf.byteOffset, defBuf.byteLength);
         const definitionFlag = 0x40;
-        defView.setUint8(0, (localMsgType & 0xf) | definitionFlag);
+        defView.setUint8(0, (localMsgId & 0xf) | definitionFlag);
         const littleEndian = msg.mDef.littleEndian;
         defView.setUint8(2, littleEndian ? 0 : 1);
         defView.setUint16(3, msg.mDef.globalMessageNumber, littleEndian);
@@ -256,21 +251,39 @@ export function writeMessage(msg, localMsgTypes, devFields) {
             defView.setUint8(offt++, fDef.size);
             defView.setUint8(offt++, fDef.baseTypeId);
         }
-        buffers.unshift(defBuf);
     }
-    return joinBuffers(buffers);
+    const sizeIncrease = (defBuf ? defBuf.byteLength : 0) + msg.size;
+    const sizeAvail = dataArray.byteLength;
+    if (sizeAvail < sizeIncrease) {
+        dataArray = grow(dataArray, sizeIncrease);
+    }
+    // Should have room to write it all out now...
+    if (defBuf) {
+        dataArray.set(defBuf);
+        dataArray = dataArray.subarray(defBuf.byteLength);
+    }
+    const view = new DataView(dataArray.buffer, dataArray.byteOffset);
+    view.setUint8(0, localMsgId & 0xf);
+    let offt = 1;
+    for (const fDef of msg.mDef.fieldDefs) {
+        const le = fDef.endianAbility ? fDef.littleEndian : true; // XXX Not sure if we should default to true.
+        const data = encoded[fDef.attrs.field];
+        if (typeof data === 'number' || typeof data === 'bigint') {
+            fDef.baseType.dataSet.call(view, offt, data, le);
+        } else if (data instanceof Array) {
+            for (let i = 0; i < data.length; i++) {
+                fDef.baseType.dataSet.call(view, offt + (i * fDef.baseType.size), data[i], le);
+            }
+        } else if (data instanceof fDef.baseType.TypedArray) {
+            dataArray.set(data, offt);
+        } else {
+            throw new TypeError(`Unsupported data type: ${data}`);
+        }
+        offt += fDef.size;
+    }
+    return dataArray.subarray(msg.size);
 }
 
-export function joinBuffers(buffers) {
-    const size = buffers.reduce((acc, x) => acc + x.byteLength, 0);
-    const fullBuf = new Uint8Array(size);
-    let offt = 0;
-    for (const x of buffers) {
-        fullBuf.set(x, offt);
-        offt += x.byteLength;
-    }
-    return fullBuf;
-}
 
 export function readMessage(buf, definitions, devFields) {
     const dataView = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);

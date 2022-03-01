@@ -28,11 +28,11 @@ export default class FitParser {
         if (fileTypeString !== '.FIT') {
             throw new TypeError('Missing \'.FIT\' in header');
         }
-        let hasCrcHeader;
+        let hasCRCHeader;
         if (headerLength === 14) {
             const crcHeader = dataView.getUint16(12, /*LE*/ true);
             if (crcHeader) {
-                hasCrcHeader = true;
+                hasCRCHeader = true;
                 const crcHeaderCalc = bin.calculateCRC(buf, 0, 12);
                 if (crcHeader !== crcHeaderCalc) {
                     throw new Error('Header CRC mismatch');
@@ -42,7 +42,7 @@ export default class FitParser {
         const dataLength = dataView.getUint32(4, /*LE*/ true);
         const dataEnd = dataLength + headerLength;
         const crcFile = dataView.getUint16(dataEnd, /*LE*/ true);
-        const crcFileCalc = bin.calculateCRC(buf, hasCrcHeader ? headerLength : 0, dataEnd);
+        const crcFileCalc = bin.calculateCRC(buf, hasCRCHeader ? headerLength : 0, dataEnd);
         if (crcFile !== crcFileCalc) {
             throw new Error('File CRC mismatch');
         }
@@ -61,29 +61,42 @@ export default class FitParser {
     }
 
     encode() {
-        const headerBuf = new Uint8Array(14);
-        headerBuf[0] = 14;  // header size;
+        const estSize = Math.min(this.messages.length * 24, 256 * 1024);
+        let ab = new ArrayBuffer(4096 + (Math.floor(estSize / 4096) * 4096));
+        const le = true;
+        let view = new DataView(ab);
+        const headerSize = 14;
+        const dataCRCSize = 2;
+        view.setUint8(0, headerSize);
         const version_major = 1;
         const version_minor = 0;
-        headerBuf[1] = version_major << 4 | version_minor;
+        view.setUint8(1, version_major << 4 | version_minor);
         const profile_version_major = 20;
         const profile_version_minor = 96;
         const profile_version = profile_version_major * 100 + profile_version_minor;
-        headerBuf.set(bin.uint16leBytes(profile_version), 2);
-        headerBuf.set('.FIT'.split('').map(x => x.charCodeAt(0)), 8);
-        const localMsgTypes = new Map();
-        const dataBuf = bin.joinBuffers(this.messages.map(x =>
-            bin.writeMessage(x, localMsgTypes, this._devFields)));
-        headerBuf.set(bin.uint32leBytes(dataBuf.byteLength), 4);
-        const headerCrc = bin.calculateCRC(headerBuf, 0, 12);
-        headerBuf.set(bin.uint16leBytes(headerCrc), 12);
-        const crcBuf = new Uint8Array(2);
-        const crc = bin.calculateCRC(dataBuf);
-        crcBuf.set(bin.uint16leBytes(crc));
-        return bin.joinBuffers([headerBuf, dataBuf, crcBuf]);
+        view.setUint16(2, profile_version, le);
+        (new Uint8Array(ab, 8, 4)).set('.FIT'.split('').map(x => x.charCodeAt(0)));
+        const dataArray = bin.writeMessages(new Uint8Array(ab, headerSize), this.messages, this._devFields);
+        const dataSize = dataArray.byteLength;
+        const size = headerSize + dataSize + dataCRCSize;
+        ab = dataArray.buffer;  // may have been realloc'd for size
+        if (ab.byteLength < size) {
+            // unlikely...
+            const bigger = new Uint8Array(size);
+            bigger.set(new Uint8Array(ab));
+            ab = bigger.buffer;
+        }
+        view = new DataView(ab);  // Underlying buffer may be same as initial but with header offset.
+        view.setUint32(4, dataSize, le);
+        const headerCRC = bin.calculateCRC(new Uint8Array(ab, 0, 12));
+        view.setUint16(12, headerCRC, le);
+        const dataCRC = bin.calculateCRC(dataArray);
+        view.setUint16(headerSize + dataSize, dataCRC, le);
+        return new Uint8Array(ab, 0, size);
     }
 
     addMessage(globalMessage, fields) {
+        try {
         const message = fit.messagesIndex[globalMessage];
         const littleEndian = true;
         const mDef = {
@@ -97,11 +110,9 @@ export default class FitParser {
             if (!attrs) {
                 throw new TypeError(`Invalid field: ${globalMessage}[${key}]`);
             }
-            const baseTypeName = (fit.typesIndex[attrs.type] ?
-                fit.typesIndex[attrs.type].type :
-                attrs.type).split('_array')[0];
-            const baseType = fit.getBaseTypeByName(baseTypeName);
-            const baseTypeId = fit.typesIndex.fit_base_type.values[baseTypeName];
+            const customType = fit.typesIndex[attrs.type];
+            const baseType = fit.baseTypesIndex[customType ? customType.type : attrs.type];
+            const baseTypeId = fit.typesIndex.fit_base_type.values[baseType.name];
             const endianFlag = 0x80;
             mDef.fieldDefs.push({
                 attrs,
@@ -119,5 +130,6 @@ export default class FitParser {
             mDef,
             fields,
         });
+        }catch(e) {debugger}
     }
 }
