@@ -95,9 +95,8 @@ export default class FitParser {
         return new Uint8Array(ab, 0, size);
     }
 
-    addMessage(globalMessage, fields) {
-        try {
-        const message = fit.messagesIndex[globalMessage];
+    addMessage(name, fields) {
+        const message = fit.messagesIndex[name];
         const littleEndian = true;
         const mDef = {
             littleEndian,
@@ -108,7 +107,7 @@ export default class FitParser {
         for (const key of Object.keys(fields)) {
             const attrs = message.fields[key];
             if (!attrs) {
-                throw new TypeError(`Invalid field: ${globalMessage}[${key}]`);
+                throw new TypeError(`Invalid field: ${name}[${key}]`);
             }
             const customType = fit.typesIndex[attrs.type];
             const baseType = fit.baseTypesIndex[customType ? customType.type : attrs.type];
@@ -126,10 +125,10 @@ export default class FitParser {
         }
         this.messages.push({
             type: 'data',
+            name,
             size: undefined,
             mDef,
             fields,
         });
-        }catch(e) {debugger}
     }
 }

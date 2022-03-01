@@ -195,7 +195,6 @@ export function writeMessages(dataArray, msgs, devFields) {
 
 function grow(dataArray, minGrowth) {
     const curSize = dataArray.buffer.byteLength;
-    console.count("XXX grow");
     const newSize = Math.ceil(Math.max(curSize * 1.15, curSize + minGrowth) / 4096) * 4096;
     const bigger = new Uint8Array(newSize);
     bigger.set(new Uint8Array(dataArray.buffer, 0));
@@ -205,27 +204,30 @@ function grow(dataArray, minGrowth) {
 
 function _writeMessage(dataArray, msg, localMsgIds, devFields) {
     // Prep the data and calculated sizes first...
-    const encoded = {};
+    const encodedValues = {};
     msg.size = 1;
     for (const fDef of msg.mDef.fieldDefs) {
         const key = fDef.attrs.field;
-        const value = msg.fields[key];
-        encoded[key] = value != null ?
-            encodeTypedData(value, fDef, msg.fields) :
+        const nativeVal = msg.fields[key];
+        const encodedVal = encodedValues[key] = nativeVal != null ?
+            encodeTypedData(nativeVal, fDef, msg.fields) :
             getInvalidValue(fDef.baseType.name);
-        if (encoded[key] instanceof fDef.baseType.TypedArray) {
-            fDef.size = encoded[key].byteLength;  // string
+        if (encodedVal instanceof fDef.baseType.TypedArray) {
+            fDef.size = encodedVal.byteLength;  // string
         } else {
-            const length = fDef.attrs.isArray && value ? value.length : 1;
+            const length = fDef.attrs.isArray && nativeVal ? nativeVal.length : 1;
             fDef.size = fDef.baseType.size * length;
         }
         msg.size += fDef.size;
     }
+    // Try to find a preexisting msg def to use...
     const mDefSig = msgDefSig(msg.mDef);
     let localMsgId;
     if (localMsgIds.lastSig === mDefSig) {
+        console.count("HIT");
         localMsgId = localMsgIds.lastId;
     } else {
+        console.count("MISS");
         localMsgId = localMsgIds.get(mDefSig);
     }
     let defBuf;
@@ -252,12 +254,12 @@ function _writeMessage(dataArray, msg, localMsgIds, devFields) {
             defView.setUint8(offt++, fDef.baseTypeId);
         }
     }
+    // We finally know how much data will be used.
     const sizeIncrease = (defBuf ? defBuf.byteLength : 0) + msg.size;
     const sizeAvail = dataArray.byteLength;
     if (sizeAvail < sizeIncrease) {
         dataArray = grow(dataArray, sizeIncrease);
     }
-    // Should have room to write it all out now...
     if (defBuf) {
         dataArray.set(defBuf);
         dataArray = dataArray.subarray(defBuf.byteLength);
@@ -267,7 +269,7 @@ function _writeMessage(dataArray, msg, localMsgIds, devFields) {
     let offt = 1;
     for (const fDef of msg.mDef.fieldDefs) {
         const le = fDef.endianAbility ? fDef.littleEndian : true; // XXX Not sure if we should default to true.
-        const data = encoded[fDef.attrs.field];
+        const data = encodedValues[fDef.attrs.field];
         if (typeof data === 'number' || typeof data === 'bigint') {
             fDef.baseType.dataSet.call(view, offt, data, le);
         } else if (data instanceof Array) {
@@ -372,6 +374,7 @@ function readDefinitionMessage(dataView, recordHeader, localMessageType, definit
 }
 
 function readDataMessage(dataView, recordHeader, localMessageType, definitions, devFields) {
+    debugger;
     const mDef = definitions[localMessageType] || definitions[0];
     const compressedFlag = 0x80;
     if ((recordHeader & compressedFlag) === compressedFlag) {
@@ -401,6 +404,7 @@ function readDataMessage(dataView, recordHeader, localMessageType, definitions, 
     }
     return {
         type: 'data',
+        name: message.name,
         size,
         mDef,
         fields,
