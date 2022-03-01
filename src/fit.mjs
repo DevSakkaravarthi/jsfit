@@ -2,7 +2,7 @@
 /* global BigUint64Array, BigInt64Array, BigInt */
 /* eslint indent: "off" */
 
-export * from 'parser.mjs';
+export {default as FitParser} from 'parser.mjs';
 
 const _dtOfft = 7304 * 86400 * 1000;  // 7304 days between 1970 and 1990
 
