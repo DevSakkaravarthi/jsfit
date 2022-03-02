@@ -23,10 +23,9 @@ function dateTimeEncode(x) {
     }
 }
 
-const DVP = DataView.prototype;
 
-// Order is critical here, it matches the base_type_num mask 0x1f
-export const baseTypes = [
+const DVP = DataView.prototype;
+export const baseTypes = [ // Order is critical here, it matches the base_type_num mask 0x1f
     {invalid: 0xff, name: 'enum', size: 1, TypedArray: Uint8Array, dataSet: DVP.setUint8},
     {invalid: 0x7f, name: 'sint8', size: 1, TypedArray: Int8Array, dataSet: DVP.setInt8},
     {invalid: 0xff, name: 'uint8', size: 1, TypedArray: Uint8Array, dataSet: DVP.setUint8},
@@ -45,6 +44,7 @@ export const baseTypes = [
     {invalid: BigInt('0xffffffffffffffff'), name: 'uint64', size: 8, TypedArray: BigUint64Array, dataSet: DVP.setBigUint64},
     {invalid: BigInt('0x0000000000000000'), name: 'uint64z', size: 8, TypedArray: BigUint64Array, dataSet: DVP.setBigUint64},
 ];
+
 
 export const messages = {
     0: {
@@ -4478,6 +4478,7 @@ export const types = {
     }
 };
 
+
 export const typesIndex = {};
 for (const [type, obj] of Object.entries(types)) {
     typesIndex[type] = {values: {}};
@@ -4497,3 +4498,5 @@ export function getBaseType(baseType) {
 
 
 export const baseTypesIndex = Object.fromEntries(baseTypes.map(x => [x.name, x]));
+export const baseTypeIdsIndex = Object.fromEntries(Object.entries(types.fit_base_type).map(
+    ([id, label]) => [label, id]));

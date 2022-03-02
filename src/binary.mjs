@@ -1,19 +1,10 @@
 // vim: ts=4:sw=4:expandtab
 /* eslint indent: "off" */
-
 import * as fit from './fit.mjs';
-
-export function addEndian(littleEndian, bytes) {
-    let result = 0;
-    if (!littleEndian) bytes.reverse();
-    for (let i = 0; i < bytes.length; i++) {
-        result += (bytes[i] << (i << 3)) >>> 0;
-    }
-    return result;
-}
 
 
 function readTypedData(buf, fDef) {
+    // XXX migrate to the dataSet property.  No need for inference anymore.
     const typedBuf = new fDef.baseType.TypedArray(fDef.size / fDef.baseType.size);
     const view = new DataView(buf.buffer, buf.byteOffset, fDef.size);
     const typeName = typedBuf.constructor.name.split('Array')[0];
@@ -30,7 +21,7 @@ function encodeTypedData(data, fDef, fields) {
     const type = fDef.attrs.type;
     const isArray = !!fDef.attrs.isArray;
     let customType;
-    if (getBaseTypeId(type) === undefined) {
+    if (fit.baseTypeIdsIndex[type] === undefined) {
         customType = fit.typesIndex[type];
         if (!customType) {
             throw new TypeError(`Unsupported type: ${type}`);
@@ -92,11 +83,12 @@ function encodeTypedData(data, fDef, fields) {
     return isArray ? data.map(encode) : encode(data);
 }
 
+
 function decodeTypedData(data, fDef, fields) {
     const type = fDef.attrs.type;
     const isArray = !!fDef.attrs.isArray;
     let customType;
-    if (getBaseTypeId(type) === undefined) {
+    if (fit.baseTypeIdsIndex[type] === undefined) {
         customType = fit.types[type];
         if (!customType) {
             throw new TypeError(`Unsupported type: ${type}`);
@@ -164,7 +156,7 @@ function decodeTypedData(data, fDef, fields) {
 
 
 function getInvalidValue(type) {
-    const bt = fit.getBaseType(getBaseTypeId(type));
+    const bt = fit.getBaseType(fit.baseTypeIdsIndex[type]);
     if (bt === undefined) {
         throw new TypeError(`Invalid type: ${type}`);
     }
@@ -297,6 +289,7 @@ export function readMessage(buf, definitions, devFields) {
     }
 }
 
+
 function readDefinitionMessage(dataView, recordHeader, localMessageType, definitions, devFields) {
     const devDataFlag = 0x20;
     const hasDevData = (recordHeader & devDataFlag) === devDataFlag;
@@ -372,7 +365,6 @@ function readDefinitionMessage(dataView, recordHeader, localMessageType, definit
 }
 
 function readDataMessage(dataView, recordHeader, localMessageType, definitions, devFields) {
-    debugger;
     const mDef = definitions[localMessageType] || definitions[0];
     const compressedFlag = 0x80;
     if ((recordHeader & compressedFlag) === compressedFlag) {
@@ -409,26 +401,14 @@ function readDataMessage(dataView, recordHeader, localMessageType, definitions, 
     };
 }
 
-export function getArrayBuffer(buffer) {
-    if (buffer instanceof ArrayBuffer) {
-        return buffer;
-    }
-    const ab = new ArrayBuffer(buffer.length);
-    const view = new Uint8Array(ab);
-    for (let i = 0; i < buffer.length; ++i) {
-        view[i] = buffer[i];
-    }
-    return ab;
-}
 
 export function calculateCRC(buf, start, end) {
     const crcTable = [
         0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401,
         0xA001, 0x6C00, 0x7800, 0xB401, 0x5000, 0x9C01, 0x8801, 0x4400,
     ];
-
     let crc = 0;
-    for (let i = (start || 0); i < (end || buf.length); i++) {
+    for (let i = (start || 0); i < (end || buf.byteLength); i++) {
         const byte = buf[i];
         let tmp = crcTable[crc & 0xF];
         crc = (crc >> 4) & 0x0FFF;
@@ -437,26 +417,6 @@ export function calculateCRC(buf, start, end) {
         crc = (crc >> 4) & 0x0FFF;
         crc = crc ^ tmp ^ crcTable[(byte >> 4) & 0xF];
     }
-
     return crc;
 }
 
-export function leBytes(value, TypedArray) {
-    return new Uint8Array(new TypedArray([value]).buffer);
-}
-
-export function uint32leBytes(value) {
-    return leBytes(value, Uint32Array);
-}
-
-export function uint16leBytes(value) {
-    return leBytes(value, Uint16Array);
-}
-
-let _baseTypeLabels;
-export function getBaseTypeId(label) {
-    if (!_baseTypeLabels) {
-        _baseTypeLabels = new Map(Object.entries(fit.types.fit_base_type).map(([id, label]) => [label, id]));
-    }
-    return _baseTypeLabels.get(label);
-}

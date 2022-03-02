@@ -10,39 +10,40 @@ export default class FitParser {
         this._devFields = {};
     }
 
-    static decode(content) {
-        const ab = bin.getArrayBuffer(content);
-        const buf = new Uint8Array(ab);
-        const dataView = new DataView(ab);
-        if (buf.byteLength < 12) {
+    static decode(dataArray) {
+        if (!(dataArray instanceof Uint8Array)) {
+            throw new TypeError("Uint8Array required");
+        }
+        if (dataArray.byteLength < 12) {
             throw new TypeError('File to small to be a FIT file');
         }
-        const headerLength = dataView.getUint8(0);
+        const view = new DataView(dataArray.buffer, dataArray.byteOffset, dataArray.byteLength);
+        const headerLength = view.getUint8(0);
         if (headerLength !== 14 && headerLength !== 12) {
             throw new TypeError('Incorrect header size');
         }
         let fileTypeString = '';
         for (let i = 8; i < 12; i++) {
-            fileTypeString += String.fromCharCode(dataView.getUint8(i));
+            fileTypeString += String.fromCharCode(view.getUint8(i));
         }
         if (fileTypeString !== '.FIT') {
             throw new TypeError('Missing \'.FIT\' in header');
         }
         let hasCRCHeader;
         if (headerLength === 14) {
-            const crcHeader = dataView.getUint16(12, /*LE*/ true);
+            const crcHeader = view.getUint16(12, /*LE*/ true);
             if (crcHeader) {
                 hasCRCHeader = true;
-                const crcHeaderCalc = bin.calculateCRC(buf, 0, 12);
+                const crcHeaderCalc = bin.calculateCRC(dataArray, 0, 12);
                 if (crcHeader !== crcHeaderCalc) {
                     throw new Error('Header CRC mismatch');
                 }
             }
         }
-        const dataLength = dataView.getUint32(4, /*LE*/ true);
+        const dataLength = view.getUint32(4, /*LE*/ true);
         const dataEnd = dataLength + headerLength;
-        const crcFile = dataView.getUint16(dataEnd, /*LE*/ true);
-        const crcFileCalc = bin.calculateCRC(buf, hasCRCHeader ? headerLength : 0, dataEnd);
+        const crcFile = view.getUint16(dataEnd, /*LE*/ true);
+        const crcFileCalc = bin.calculateCRC(dataArray, hasCRCHeader ? headerLength : 0, dataEnd);
         if (crcFile !== crcFileCalc) {
             throw new Error('File CRC mismatch');
         }
@@ -50,7 +51,7 @@ export default class FitParser {
         let offt = headerLength;
         const definitions = {};
         while (offt < dataEnd) {
-            const rBuf = new Uint8Array(buf.buffer, buf.byteOffset + offt);
+            const rBuf = dataArray.subarray(offt);
             const msg = bin.readMessage(rBuf, definitions, instance._devFields);
             if (msg.type === 'data') {
                 instance.messages.push(msg);
