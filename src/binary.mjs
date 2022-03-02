@@ -164,16 +164,6 @@ function getInvalidValue(type) {
 }
 
 
-function msgDefSig(mDef) {
-    let sig = '' + mDef.littleEndian + mDef.globalMessageNumber + mDef.fieldCount + ' ';
-    for (let i = 0; i < mDef.fieldDefs.length; i++) {
-        const x = mDef.fieldDefs[i];
-        sig += ' ' + x.fDefNum + x.littleEndian + x.size;
-    }
-    return sig;
-}
-
-
 export function writeMessages(dataArray, msgs, devFields) {
     const localMsgIds = new Map();
     let offtDataArray = dataArray;
@@ -198,7 +188,9 @@ function _writeMessage(dataArray, msg, localMsgIds, devFields) {
     // Prep the data and calculated sizes first...
     const encodedValues = {};
     msg.size = 1;
+    let mDefSig = '' + msg.mDef.globalMessageNumber + msg.mDef.littleEndian + msg.mDef.fieldCount;
     for (const fDef of msg.mDef.fieldDefs) {
+        mDefSig += ' ' + fDef.fDefNum + fDef.littleEndian + fDef.size;
         const key = fDef.attrs.field;
         const nativeVal = msg.fields[key];
         const encodedVal = encodedValues[key] = nativeVal != null ?
@@ -212,8 +204,6 @@ function _writeMessage(dataArray, msg, localMsgIds, devFields) {
         }
         msg.size += fDef.size;
     }
-    // Try to find a preexisting msg def to use...
-    const mDefSig = msgDefSig(msg.mDef);
     let localMsgId;
     if (localMsgIds.lastSig === mDefSig) {
         localMsgId = localMsgIds.lastId;
