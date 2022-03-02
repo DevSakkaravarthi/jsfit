@@ -224,18 +224,14 @@ function _writeMessage(dataArray, msg, localMsgIds, devFields) {
     const mDefSig = msgDefSig(msg.mDef);
     let localMsgId;
     if (localMsgIds.lastSig === mDefSig) {
-        console.count("HIT");
         localMsgId = localMsgIds.lastId;
     } else {
-        console.count("MISS");
         localMsgId = localMsgIds.get(mDefSig);
     }
     let defBuf;
     if (localMsgId === undefined) {
         localMsgId = localMsgIds.size;
         localMsgIds.set(mDefSig, localMsgId);
-        localMsgIds.lastSig = mDefSig;
-        localMsgIds.lastId = localMsgId;
         defBuf = new Uint8Array(6 + (msg.mDef.fieldDefs.length * 3)); // XXX does not support devfields
         const defView = new DataView(defBuf.buffer, defBuf.byteOffset, defBuf.byteLength);
         const definitionFlag = 0x40;
@@ -254,6 +250,8 @@ function _writeMessage(dataArray, msg, localMsgIds, devFields) {
             defView.setUint8(offt++, fDef.baseTypeId);
         }
     }
+    localMsgIds.lastSig = mDefSig;
+    localMsgIds.lastId = localMsgId;
     // We finally know how much data will be used.
     const sizeIncrease = (defBuf ? defBuf.byteLength : 0) + msg.size;
     const sizeAvail = dataArray.byteLength;
