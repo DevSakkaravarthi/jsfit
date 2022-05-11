@@ -14,12 +14,12 @@ function dateTimeDecode(x) {
     }
 }
 
+
 function dateTimeEncode(x) {
-    if (typeof x === 'number') {
+    if (typeof x === 'number' && x < 0x10000000) {
         return x;  // seconds-since-power-on value is already a number
     } else {
-        const ts = x.getTime();
-        return (ts - _dtOfft) / 1000;
+        return (x - _dtOfft) / 1000;
     }
 }
 
