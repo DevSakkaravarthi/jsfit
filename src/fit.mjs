@@ -502,7 +502,8 @@ export const messages = {
         95: { field: 'time_to_surface', type: 'uint32', scale: null, offset: 0},
         96: { field: 'ndl_time', type: 'uint32', scale: null, offset: 0},
         97: { field: 'cns_load', type: 'uint8', scale: null, offset: 0},
-        98: { field: 'n2_load', type: 'uint16', scale: null, offset: 0}
+        98: { field: 'n2_load', type: 'uint16', scale: null, offset: 0},
+        99: { field: 'draft', type: 'uint16', scale: null, offset: 0}
     },
     21: {
         name: 'event',
